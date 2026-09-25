@@ -1,0 +1,288 @@
+phishing-lab/
+├── server.js
+├── package.json
+├── .env
+└── public/
+    └── index.html
+
+
+{
+  "name": "telegram-phishing-awareness-lab",
+  "version": "1.0.0",
+  "description": "Safe phishing-awareness testing lab",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
+  }
+}
+
+
+TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID
+PORT=3000
+
+require("dotenv").config();
+
+const express = require("express");
+const path = require("path");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json({ limit: "10kb" }));
+app.use(express.static(path.join(__dirname, "public")));
+
+async function sendTelegram(message) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!token || !chatId) {
+    console.error("Telegram credentials are not configured.");
+    return;
+  }
+
+  const url =
+    `https://api.telegram.org/bot${token}/sendMessage`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: message
+    })
+  });
+
+  if (!response.ok) {
+    console.error("Telegram request failed:", await response.text());
+  }
+}
+
+app.post("/api/event", async (req, res) => {
+  const allowedFields = [
+    "username",
+    "password",
+    "cvv",
+    "search"
+  ];
+
+  const field = String(req.body.field || "");
+
+  if (!allowedFields.includes(field)) {
+    return res.status(400).json({
+      error: "Invalid field"
+    });
+  }
+
+  const eventType = String(req.body.eventType || "interaction");
+
+  const message =
+    `🛡️ PHISHING LAB EVENT\n\n` +
+    `Event: ${eventType}\n` +
+    `Field: ${field}\n` +
+    `Credential value: NOT COLLECTED\n` +
+    `Keystrokes: NOT COLLECTED`;
+
+  console.log(message);
+
+  try {
+    await sendTelegram(message);
+  } catch (error) {
+    console.error("Telegram error:", error);
+  }
+
+  res.json({
+    success: true
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Lab running on port ${PORT}`);
+});
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Security Awareness Test</title>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f2f4f7;
+      font-family: Arial, sans-serif;
+    }
+
+    .card {
+      width: 350px;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.12);
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    label {
+      display: block;
+      margin-top: 16px;
+      margin-bottom: 6px;
+    }
+
+    input {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 12px;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .notice {
+      margin-top: 20px;
+      padding: 12px;
+      background: #fff4cc;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <h1>Security Test</h1>
+
+  <p>
+    This is an authorized phishing-awareness simulation.
+  </p>
+
+  <form id="testForm">
+
+    <label for="username">Username</label>
+    <input
+      id="username"
+      name="username"
+      autocomplete="off"
+    >
+
+    <label for="password">Password</label>
+    <input
+      id="password"
+      name="password"
+      type="password"
+      autocomplete="off"
+    >
+
+    <label for="cvv">CVV</label>
+    <input
+      id="cvv"
+      name="cvv"
+      inputmode="numeric"
+      autocomplete="off"
+    >
+
+    <label for="search">Search</label>
+    <input
+      id="search"
+      name="search"
+      autocomplete="off"
+    >
+
+    <button type="submit">
+      Continue
+    </button>
+
+  </form>
+
+  <div class="notice">
+    No passwords, CVVs, or keystrokes are transmitted
+    by this simulation.
+  </div>
+
+</div>
+
+<script>
+const fields = [
+  "username",
+  "password",
+  "cvv",
+  "search"
+];
+
+async function reportEvent(field, eventType) {
+  try {
+    await fetch("/api/event", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        field: field,
+        eventType: eventType
+      })
+    });
+  } catch (error) {
+    console.error("Event reporting failed.");
+  }
+}
+
+fields.forEach(field => {
+
+  const element = document.getElementById(field);
+
+  element.addEventListener("focus", () => {
+    reportEvent(field, "field-focused");
+  });
+
+  element.addEventListener("input", () => {
+    // IMPORTANT:
+    // We deliberately do NOT read element.value.
+    // Individual keystrokes and entered values never leave
+    // the browser.
+    reportEvent(field, "field-interacted");
+  });
+
+});
+
+document
+  .getElementById("testForm")
+  .addEventListener("submit", event => {
+
+    event.preventDefault();
+
+    reportEvent("form", "simulation-submitted");
+
+    alert(
+      "Security-awareness test completed. " +
+      "No credentials were collected."
+    );
+  });
+</script>
+
+</body>
+</html>
